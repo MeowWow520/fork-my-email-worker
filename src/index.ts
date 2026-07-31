@@ -1,21 +1,8 @@
-/**
- * Welcome to Cloudflare Workers!
- *
- * This is a template for an Email Worker: a worker that is triggered by an incoming email.
- * https://developers.cloudflare.com/email-routing/email-workers/
- *
- * - The wrangler development server is not enabled to run email workers locally.
- * - Run `pnpm ship` to publish your worker
- *
- * Bind resources to your worker in `wrangler.toml`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `pnpm cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 import { EmailMessage } from 'cloudflare:email'
 import { createMimeMessage } from 'mimetext'
 import PostalMime from 'postal-mime'
+import htmlTemplate from '../REPLY/REPLY_HTML.txt'
+import { renderReply, DEFAULT_TEXT_TEMPLATE } from './reply'
 
 export default {
   email: async (message, env, ctx) => {
@@ -26,29 +13,58 @@ export default {
     const email = await PostalMime.parse(message.raw)
     email.attachments.forEach((a) => {
       if (a.mimeType === 'application/json') {
-        const jsonString = new TextDecoder().decode(a.content)
+        const jsonString =
+          typeof a.content === 'string'
+            ? a.content
+            : new TextDecoder().decode(a.content)
         const jsonValue = JSON.parse(jsonString)
         console.log(`JSON attachment value:\n${JSON.stringify(jsonValue, null, 2)}`)
       }
     })
 
-    // reply to sender must include in-reply-to with message ID
+    // build a multipart (text + HTML) auto-reply
     // https://developers.cloudflare.com/email-routing/email-workers/reply-email-workers/
-    const messageId = message.headers.get('message-id')
-    if (messageId) {
-      console.log(`Replying to ${message.from} with message ID ${messageId}`)
-      const msg = createMimeMessage()
-      msg.setHeader('in-reply-to', messageId)
-      msg.setSender(env.EMAIL_WORKER_ADDRESS)
-      msg.setRecipient(message.from)
-      msg.setSubject('Auto-reply')
-      msg.addMessage({
-        contentType: 'text/plain',
-        data: `Thanks for the message`
-      })
-      const replyMessage = new EmailMessage(env.EMAIL_WORKER_ADDRESS, message.from, msg.asRaw())
-      ctx.waitUntil(message.reply(replyMessage))
+    const originalSubject = message.headers.get('subject')?.trim() ?? ''
+    const subjectTemplate = env.REPLY_SUBJECT ?? 'Re: {{subject}}'
+    const subject =
+      originalSubject === ''
+        ? 'Auto-reply'
+        : subjectTemplate.replaceAll('{{subject}}', originalSubject)
+
+    const assetBaseUrl: string = env.ASSET_BASE_URL ?? ''
+    const values: Record<string, string> = {
+      asset_base_url: assetBaseUrl,
+      name: env.REPLY_NAME ?? '',
+      username: env.REPLY_USERNAME ?? '',
+      bio: env.REPLY_BIO ?? '',
+      location: env.REPLY_LOCATION ?? '',
+      website_url: env.REPLY_WEBSITE_URL ?? '',
+      website_label: env.REPLY_WEBSITE_LABEL ?? '',
+      x_url: env.REPLY_X_URL ?? '',
+      x_handle: env.REPLY_X_HANDLE ?? '',
+      email: env.REPLY_EMAIL ?? message.to,
+      avatar_url: env.REPLY_AVATAR_URL ?? (assetBaseUrl !== '' ? `${assetBaseUrl}/avatar.jpg` : ''),
+      repo_url: env.REPLY_REPO_URL ?? '',
+      github_url: env.REPLY_GITHUB_URL ?? '',
+      github_label: env.REPLY_GITHUB_LABEL ?? ''
     }
+
+    const { text, html } = renderReply(env.REPLY_TEXT ?? DEFAULT_TEXT_TEMPLATE, htmlTemplate, {
+      subject: originalSubject,
+      from: message.from,
+      values
+    })
+
+    await message.reply({
+      from: {
+        name: env.REPLY_FROM_NAME ?? 'Auto Reply',
+        email: message.to
+      },
+      subject,
+      text,
+      html
+    })
+    console.log(`Replied to ${message.from} for "${subject}"`)
 
     ctx.waitUntil(message.forward(env.EMAIL_FORWARD_ADDRESS))
   },

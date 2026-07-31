@@ -1,0 +1,5 @@
+Hello {{from}},
+
+Thank you for your email. I will reply soon.
+
+Best regards

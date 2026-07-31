@@ -3,5 +3,22 @@
 interface Env {
 	EMAIL_WORKER_ADDRESS: "my-email-worker@jldec.fun";
 	EMAIL_FORWARD_ADDRESS: "jurgen@jldec.me";
+	REPLY_FROM_NAME: "[Auto Reply] MeowWow520";
+	ASSET_BASE_URL: "https://cdn.jsdelivr.net/gh/MeowWow520/cf-email-auto-reply@main/REPLY";
 	SEND_EMAIL: SendEmail;
+	REPLY_SUBJECT?: string;
+	REPLY_TEXT?: string;
+	REPLY_NAME?: string;
+	REPLY_USERNAME?: string;
+	REPLY_BIO?: string;
+	REPLY_LOCATION?: string;
+	REPLY_WEBSITE_URL?: string;
+	REPLY_WEBSITE_LABEL?: string;
+	REPLY_X_URL?: string;
+	REPLY_X_HANDLE?: string;
+	REPLY_EMAIL?: string;
+	REPLY_AVATAR_URL?: string;
+	REPLY_REPO_URL?: string;
+	REPLY_GITHUB_URL?: string;
+	REPLY_GITHUB_LABEL?: string;
 }

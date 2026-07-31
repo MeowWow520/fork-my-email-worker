@@ -1,15 +1,47 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "my-email-worker"
 main = "src/index.ts"
-compatibility_date = "2024-10-11"
+compatibility_date = "2026-07-01"
 compatibility_flags = [ "nodejs_compat" ]
 
 [observability]
 enabled = true
 
 [vars]
-EMAIL_WORKER_ADDRESS = "my-email-worker@jldec.fun"
-EMAIL_FORWARD_ADDRESS = "jurgen@jldec.me"
+# 收到邮件时自动回复所用地址(必须是在 Cloudflare Email Routing 中配置的自定义地址)
+EMAIL_WORKER_ADDRESS = "e-mail@meowwow520.cn"
+# 转发目标地址(必须是在 Cloudflare Email Routing 中验证过的目的地地址)
+EMAIL_FORWARD_ADDRESS = "meow114514@outlook.com"
+
+# --- 自动回复配置 ---
+# 回复邮件的发件人显示名
+REPLY_FROM_NAME = "[Auto Reply] MeowWow520"
+# 回复主题模板(支持 {{subject}} 占位符,默认 "Re: {{subject}}";原邮件无主题时为 Auto-reply)
+REPLY_SUBJECT = "Re: {{subject}}"
+# 纯文本回复模板(支持 {{from}} / {{subject}} 占位符)
+REPLY_TEXT = """
+Hello {{from}},
+Thank you for your email. I will reply soon.
+Best regards
+"""
+
+# --- HTML 模板图片资源基础 URL(默认指向 jsDelivr,请改为你自己的仓库路径) ---
+ASSET_BASE_URL = "https://cdn.jsdelivr.net/gh/MeowWow520/fork-my-email-worker@main/REPLY"
+
+# --- HTML 模板个人信息占位符(编辑 REPLY/REPLY_HTML.html 中的 {{...}} 对应) ---
+REPLY_NAME = "MeowWow520"
+REPLY_USERNAME = "meowwow520"
+REPLY_BIO = "Everything I Want Wants Me Too"
+REPLY_LOCATION = "China"
+REPLY_WEBSITE_URL = "https://meowwow520.cn"
+REPLY_WEBSITE_LABEL = "meowwow520.cn"
+REPLY_X_URL = "https://twitter.com/MeowWow520_"
+REPLY_X_HANDLE = "MeowWow520_"
+REPLY_EMAIL = "e-mail@meowwow520.cn"
+REPLY_AVATAR_URL = ""
+REPLY_REPO_URL = "https://github.com/MeowWow520/fork-my-email-worker"
+REPLY_GITHUB_URL = "https://github.com/MeowWow520"
+REPLY_GITHUB_LABEL = "github.com/MeowWow520"
 
 [[send_email]]
 name = "SEND_EMAIL"

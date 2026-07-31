@@ -37,7 +37,7 @@ The example uses [postal-mime](https://github.com/postalsys/postal-mime#readme) 
 #:schema node_modules/wrangler/config-schema.json
 name = "my-email-worker"
 main = "src/index.ts"
-compatibility_date = "2024-10-11"
+compatibility_date = "2026-07-01"
 compatibility_flags = [ "nodejs_compat" ]
 
 [observability]
@@ -46,28 +46,34 @@ enabled = true
 [vars]
 EMAIL_WORKER_ADDRESS = "my-email-worker@jldec.fun"
 EMAIL_FORWARD_ADDRESS = "jurgen@jldec.me"
+
+# --- 自动回复配置 ---
+REPLY_FROM_NAME = "[Auto Reply] MeowWow520"
+# REPLY_SUBJECT = "Re: {{subject}}"     # 回复主题模板
+# REPLY_TEXT = "..."                    # 纯文本回复模板
+ASSET_BASE_URL = "https://cdn.jsdelivr.net/gh/MeowWow520/cf-email-auto-reply@main/REPLY"
+
+# --- HTML 模板个人信息占位符 ---
+# REPLY_NAME / REPLY_USERNAME / REPLY_BIO / REPLY_LOCATION
+# REPLY_WEBSITE_URL / REPLY_WEBSITE_LABEL / REPLY_X_URL / REPLY_X_HANDLE
+# REPLY_EMAIL / REPLY_AVATAR_URL / REPLY_REPO_URL / REPLY_GITHUB_URL / REPLY_GITHUB_LABEL
 ```
+
+### HTML 回复模板
+
+自动回复为多部分邮件(纯文本 + HTML),HTML 模板随代码打包(Cloudflare 单个变量上限 5.1 KB,不适合放变量):
+
+- 编辑 `REPLY/REPLY_HTML.html`(可在浏览器中预览),支持 `{{from}}` / `{{subject}}` 以及 `wrangler.toml` 中配置的个人信息占位符
+- 运行 `npm run sync:template` 同步到 `REPLY/REPLY_HTML.txt`(打包版)
+- `npm run ship` 会自动先同步再部署
 
 ### src/index.ts
 ```ts
-/**
- * Welcome to Cloudflare Workers!
- *
- * This is a template for an Email Worker: a worker that is triggered by an incoming email.
- * https://developers.cloudflare.com/email-routing/email-workers/
- *
- * - The wrangler development server is not enabled to run email workers locally.
- * - Run `pnpm ship` to publish your worker
- *
- * Bind resources to your worker in `wrangler.toml`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `pnpm cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
-
 import { EmailMessage } from 'cloudflare:email'
 import { createMimeMessage } from 'mimetext'
 import PostalMime from 'postal-mime'
+import htmlTemplate from '../REPLY/REPLY_HTML.txt'
+import { renderReply, DEFAULT_TEXT_TEMPLATE } from './reply'
 
 export default {
   email: async (message, env, ctx) => {
@@ -78,31 +84,86 @@ export default {
     const email = await PostalMime.parse(message.raw)
     email.attachments.forEach((a) => {
       if (a.mimeType === 'application/json') {
-        const jsonString = new TextDecoder().decode(a.content)
+        const jsonString =
+          typeof a.content === 'string'
+            ? a.content
+            : new TextDecoder().decode(a.content)
         const jsonValue = JSON.parse(jsonString)
         console.log(`JSON attachment value:\n${JSON.stringify(jsonValue, null, 2)}`)
       }
     })
 
-    // reply to sender must include in-reply-to with message ID
+    // build a multipart (text + HTML) auto-reply
     // https://developers.cloudflare.com/email-routing/email-workers/reply-email-workers/
-    const messageId = message.headers.get('message-id')
-    if (messageId) {
-      console.log(`Replying to ${message.from} with message ID ${messageId}`)
-      const msg = createMimeMessage()
-      msg.setHeader('in-reply-to', messageId)
-      msg.setSender(env.EMAIL_WORKER_ADDRESS)
-      msg.setRecipient(message.from)
-      msg.setSubject('Auto-reply')
-      msg.addMessage({
-        contentType: 'text/plain',
-        data: `Thanks for the message`
-      })
-      const replyMessage = new EmailMessage(env.EMAIL_WORKER_ADDRESS, message.from, msg.asRaw())
-      ctx.waitUntil(message.reply(replyMessage))
+    const originalSubject = message.headers.get('subject')?.trim() ?? ''
+    const subjectTemplate = env.REPLY_SUBJECT ?? 'Re: {{subject}}'
+    const subject =
+      originalSubject === ''
+        ? 'Auto-reply'
+        : subjectTemplate.replaceAll('{{subject}}', originalSubject)
+
+    const assetBaseUrl: string = env.ASSET_BASE_URL ?? ''
+    const values: Record<string, string> = {
+      asset_base_url: assetBaseUrl,
+      name: env.REPLY_NAME ?? '',
+      username: env.REPLY_USERNAME ?? '',
+      bio: env.REPLY_BIO ?? '',
+      location: env.REPLY_LOCATION ?? '',
+      website_url: env.REPLY_WEBSITE_URL ?? '',
+      website_label: env.REPLY_WEBSITE_LABEL ?? '',
+      x_url: env.REPLY_X_URL ?? '',
+      x_handle: env.REPLY_X_HANDLE ?? '',
+      email: env.REPLY_EMAIL ?? message.to,
+      avatar_url: env.REPLY_AVATAR_URL ?? (assetBaseUrl !== '' ? `${assetBaseUrl}/avatar.jpg` : ''),
+      repo_url: env.REPLY_REPO_URL ?? '',
+      github_url: env.REPLY_GITHUB_URL ?? '',
+      github_label: env.REPLY_GITHUB_LABEL ?? ''
     }
 
+    const { text, html } = renderReply(env.REPLY_TEXT ?? DEFAULT_TEXT_TEMPLATE, htmlTemplate, {
+      subject: originalSubject,
+      from: message.from,
+      values
+    })
+
+    await message.reply({
+      from: {
+        name: env.REPLY_FROM_NAME ?? 'Auto Reply',
+        email: message.to
+      },
+      subject,
+      text,
+      html
+    })
+    console.log(`Replied to ${message.from} for "${subject}"`)
+
     ctx.waitUntil(message.forward(env.EMAIL_FORWARD_ADDRESS))
+  },
+
+  // Send email in respose to a POST request (unchanged)
+  // TODO: CSRF protection, CORS headers, handle form data encoding
+  // https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/#example-worker
+  async fetch(request, env) {
+    if (request.method !== 'POST') {
+      return new Response('Method Not Allowed', { status: 405 })
+    }
+    const msg = createMimeMessage()
+    msg.setSender(env.EMAIL_WORKER_ADDRESS)
+    msg.setRecipient(env.EMAIL_FORWARD_ADDRESS)
+    msg.setSubject('Worker POST')
+    msg.addMessage({
+      contentType: 'text/plain',
+      data: (await request.text()) ?? 'No body'
+    })
+
+    var message = new EmailMessage(env.EMAIL_WORKER_ADDRESS, env.EMAIL_FORWARD_ADDRESS, msg.asRaw())
+    try {
+      await env.SEND_EMAIL.send(message)
+    } catch (e) {
+      return new Response((e as Error).message)
+    }
+
+    return new Response('OK')
   }
 } satisfies ExportedHandler<Env>
 ```
