@@ -3,6 +3,7 @@ import { createMimeMessage } from 'mimetext'
 import PostalMime from 'postal-mime'
 import htmlTemplate from '../REPLY/REPLY_HTML.txt'
 import { renderReply, DEFAULT_TEXT_TEMPLATE } from './reply'
+import { decodeEncodedWords } from './encodedWords'
 
 export default {
   email: async (message, env, ctx) => {
@@ -24,7 +25,7 @@ export default {
 
     // build a multipart (text + HTML) auto-reply
     // https://developers.cloudflare.com/email-routing/email-workers/reply-email-workers/
-    const originalSubject = message.headers.get('subject')?.trim() ?? ''
+    const originalSubject = decodeEncodedWords(message.headers.get('subject')?.trim() ?? '')
     const subjectTemplate = env.REPLY_SUBJECT ?? 'Re: {{subject}}'
     const subject =
       originalSubject === ''
