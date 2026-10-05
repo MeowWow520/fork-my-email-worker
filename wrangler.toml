@@ -9,7 +9,7 @@ enabled = true
 
 [vars]
 # 收到邮件时自动回复所用地址(必须是在 Cloudflare Email Routing 中配置的自定义地址)
-EMAIL_WORKER_ADDRESS = "e-mail@meowwow520.cn"
+EMAIL_WORKER_ADDRESS = "email@meowwow520.moe"
 # 转发目标地址(必须是在 Cloudflare Email Routing 中验证过的目的地地址)
 EMAIL_FORWARD_ADDRESS = "meow114514@outlook.com"
 
@@ -33,11 +33,11 @@ REPLY_NAME = "MeowWow520"
 REPLY_USERNAME = "meowwow520"
 REPLY_BIO = "Everything I Want Wants Me Too"
 REPLY_LOCATION = "China"
-REPLY_WEBSITE_URL = "https://meowwow520.cn"
-REPLY_WEBSITE_LABEL = "meowwow520.cn"
+REPLY_WEBSITE_URL = "https://meowwow520.moe"
+REPLY_WEBSITE_LABEL = "meowwow520.moe"
 REPLY_X_URL = "https://twitter.com/MeowWow520_"
 REPLY_X_HANDLE = "MeowWow520_"
-REPLY_EMAIL = "e-mail@meowwow520.cn"
+REPLY_EMAIL = "email@meowwow520.moe"
 REPLY_AVATAR_URL = "https://unavatar.io/github/MeowWow520"
 REPLY_REPO_URL = "https://github.com/MeowWow520/fork-my-email-worker"
 REPLY_GITHUB_URL = "https://github.com/MeowWow520"
